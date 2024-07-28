@@ -10,9 +10,9 @@ image.LOAD_TRUNCATED_IMAGES = True
 model = VGG16(weights='imagenet', include_top=False)
 
 # Variables
-imdir = 'C:/indir/' # DIR containing images
-targetdir = "C:/outdir/" # DIR to copy clustered images to
-number_clusters = 10 # EDIT FOR HOW MANY CLUSTERS YOU WANT
+imdir = 'C:/indir/IMG_PERO' # DIR containing images
+targetdir = "C:/outdir/IMG_PERO_OUTPUT" # DIR to copy clustered images to
+number_clusters = 10 # NUMBER OF CLUSTERS
 
 # Loop over files and get features
 filelist = glob.glob(os.path.join(imdir, '*.jpg'))
