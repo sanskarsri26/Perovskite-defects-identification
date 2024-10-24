@@ -70,8 +70,3 @@ number_clusters = 10
 ## Error Handling
 
 The script includes basic error handling to skip any failed image processing operations and continues with the next image.
-
-## License
-
-This project is licensed under the MIT License. Feel free to modify and distribute it as needed.
-```
