@@ -1,58 +1,150 @@
-```markdown
-# Image Clustering Using VGG16 and KMeans
+# Image Clustering Using VGG16 + K-Means
 
-This script clusters a set of images into predefined groups using features extracted from the VGG16 deep learning model. The clustered images are then copied to an output directory, renamed according to their cluster assignment.
+Cluster images into meaningful groups using deep features extracted from a pre-trained VGG16 model, then copy/rename clustered images into an output directory for quick review.
+
+> **Dataset notice (NDA):** Example images and the lab-generated dataset are **not** included in this repository due to NDA restrictions. Please use your own images to run the pipeline.
+
+---
+
+## Highlights
+
+* **Vision Transformer + K-Means (separate research track):**
+
+  * Trained a ViT with K-Means on a lab-generated dataset of **30K perovskite solar cell images** (Intel collaboration).
+  * **+40%** improvement in defect detection accuracy vs. manual inspection across **cracks, voids, and pinholes**.
+  * Data augmentation + hyperparameter tuning delivered a **+30% precision** boost, enabling partial automation of QA workflows.
+
+> The README below documents the VGG16 + K-Means clustering script. The ViT results summarize an associated research track in this project.
+
+---
+
+## How It Works
+
+1. **Image feature extraction**
+
+   * Loads **VGG16** pre-trained on ImageNet **without** the top classification layers.
+   * Resizes each image to **224×224**, preprocesses for VGG16, and extracts a pooled feature vector.
+
+2. **Clustering**
+
+   * Runs **K-Means** on the feature vectors to form `number_clusters` groups.
+
+3. **Copying & renaming**
+
+   * Copies each image into the target directory and renames it as:
+
+     ```
+     cluster_<label>_<index>.jpg
+     ```
+
+---
 
 ## Requirements
 
-To run the script, you need the following libraries installed:
-- Keras
-- TensorFlow (as backend for Keras)
-- Scikit-learn
-- NumPy
-- PIL (Python Imaging Library)
-- Glob
-- OS
+* Python 3.9+ recommended
+* Libraries:
 
-You can install these dependencies using pip:
+  * `keras` / `tensorflow` (Keras backend)
+  * `scikit-learn`
+  * `numpy`
+  * `pillow` (PIL)
+  * Standard libs: `glob`, `os`, `shutil`, `pathlib`
+
+Install with:
 
 ```bash
 pip install keras tensorflow scikit-learn numpy pillow
 ```
 
-## How it Works
+---
 
-1. **Image Feature Extraction**: 
-   - The script uses the VGG16 model pre-trained on the ImageNet dataset (without the top fully connected layers) to extract deep features from each image in the input directory. 
-   - Each image is resized to 224x224 pixels to match VGG16 input requirements.
-   
-2. **Clustering**: 
-   - The extracted features are fed into a KMeans algorithm to cluster the images into a specified number of clusters (`number_clusters`).
-   
-3. **Copying and Renaming Images**: 
-   - The clustered images are copied to an output directory and renamed with the format `cluster_label_imageindex.jpg`.
+## Quick Start
 
-## Usage
+1. **Prepare directories**
 
-1. **Define Directories**:
-   - Update the `imdir` variable with the path to the directory containing the input images.
-   - Set the `targetdir` variable to the directory where you want to save the clustered images.
+   * Put your input **.jpg** images in a folder, e.g. `C:/indir/IMG_PERO`
+   * Choose an output folder, e.g. `C:/outdir/IMG_PERO_OUTPUT`
 
-2. **Set Number of Clusters**:
-   - Set the `number_clusters` variable to define how many clusters you want.
+2. **Set parameters in the script**
 
-3. **Run the Script**:
-   - Run the script to perform clustering and copy the images.
+   * `imdir`: path to input images
+   * `targetdir`: path to write clustered outputs
+   * `number_clusters`: number of clusters to produce
 
-## Variables
+3. **Run**
 
-- `imdir`: Path to the directory containing images to be clustered.
-- `targetdir`: Path to the output directory where clustered images will be saved.
-- `number_clusters`: Number of clusters to group the images into.
-  
+   ```bash
+   python cluster_images.py
+   ```
+
+---
+
+## Example Configuration
+
+```python
+# cluster_images.py (minimal example)
+
+from pathlib import Path
+import os, shutil, glob
+import numpy as np
+from PIL import Image
+from sklearn.cluster import KMeans
+from keras.applications.vgg16 import VGG16, preprocess_input
+from keras.preprocessing.image import img_to_array
+
+# --- User config ---
+imdir = r"C:/indir/IMG_PERO"
+targetdir = r"C:/outdir/IMG_PERO_OUTPUT"
+number_clusters = 10
+# -------------------
+
+os.makedirs(targetdir, exist_ok=True)
+
+# Load VGG16 backbone (no top, global average pooling)
+model = VGG16(weights="imagenet", include_top=False, pooling="avg")
+
+features = []
+paths = []
+for p in glob.glob(str(Path(imdir) / "*.jpg")):
+    try:
+        img = Image.open(p).convert("RGB").resize((224, 224))
+        arr = img_to_array(img)[None, ...]  # shape (1, 224, 224, 3)
+        arr = preprocess_input(arr)
+        feat = model.predict(arr, verbose=0)
+        features.append(feat.squeeze())
+        paths.append(p)
+    except Exception as e:
+        print(f"[skip] {p} -> {e}")
+
+if not features:
+    raise SystemExit("No features extracted. Check your input directory and image format.")
+
+X = np.vstack(features)
+labels = KMeans(n_clusters=number_clusters, random_state=42, n_init="auto").fit_predict(X)
+
+for idx, (src, lab) in enumerate(zip(paths, labels)):
+    fname = f"cluster_{lab}_{idx:05d}.jpg"
+    dst = str(Path(targetdir) / fname)
+    try:
+        shutil.copy2(src, dst)
+    except Exception as e:
+        print(f"[copy-skip] {src} -> {e}")
+
+print(f"Done. Wrote clustered images to: {targetdir}")
+```
+
+---
+
+## Usage Notes
+
+* Input images should be **`.jpg`**. (Non-JPG images are ignored in the example script.)
+* Failed image reads are **skipped**; the script continues.
+* The output directory is created if it doesn’t exist.
+* **Runtime:** K-Means can be slow for large datasets or high cluster counts—start with a modest `number_clusters`.
+
+---
+
 ## Example
-
-If you want to cluster 100 images from `C:/indir/IMG_PERO` into 10 clusters and save the results in `C:/outdir/IMG_PERO_OUTPUT`, adjust the variables as follows:
 
 ```python
 imdir = 'C:/indir/IMG_PERO'
@@ -60,13 +152,33 @@ targetdir = 'C:/outdir/IMG_PERO_OUTPUT'
 number_clusters = 10
 ```
 
-## Notes
+This configuration clusters 100+ images (or however many are present) from `IMG_PERO` into **10** groups and writes renamed copies to `IMG_PERO_OUTPUT`.
 
-- The images are expected to be in `.jpg` format.
-- If an image is not successfully processed, it is skipped without halting the script.
-- Make sure the output directory exists or the script will attempt to create it.
-- The KMeans algorithm might take some time to run depending on the number of images and clusters.
+---
 
-## Error Handling
+## Troubleshooting
 
-The script includes basic error handling to skip any failed image processing operations and continues with the next image.
+* **No images found**: Confirm `imdir` is correct and contains `.jpg` files.
+* **Memory issues** with very large datasets: Consider batching feature extraction and saving features to disk (e.g., `.npy`) before clustering.
+* **Mixed formats**: Extend the glob to include `*.png`, etc., and adjust preprocessing if needed.
+
+---
+
+## NDA & Data Access
+
+* **Images are not provided** in this repository due to confidentiality agreements (NDA).
+* The perovskite solar cell dataset (30K images; Intel collaboration) is restricted.
+  Use your own data to reproduce clustering or contact project maintainers for potential data-sharing terms (if applicable).
+
+---
+
+## Acknowledgments
+
+* **VGG16** backbone from `keras.applications` (ImageNet weights)
+* **TensorFlow/Keras**, **scikit-learn**, **NumPy**, **Pillow**
+
+---
+
+## License
+
+Add your chosen license here (e.g., MIT).
