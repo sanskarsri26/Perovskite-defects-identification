@@ -178,7 +178,3 @@ This configuration clusters 100+ images (or however many are present) from `IMG_
 * **TensorFlow/Keras**, **scikit-learn**, **NumPy**, **Pillow**
 
 ---
-
-## License
-
-Add your chosen license here (e.g., MIT).
